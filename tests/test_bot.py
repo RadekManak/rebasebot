@@ -169,53 +169,41 @@ class TestIsPrAvailable:
     def test_is_pr_available(self, dest_repo, dest, rebase):
         # Test when pull request exists
         gh_pr = MagicMock()
-        gh_pr.as_dict.return_value = {
-            "head": {
-                "repo": {
-                    "full_name": "test-namespace/rebase-repo"
-                }
-            }
-        }
+        gh_pr.head.repo.full_name = "test-namespace/rebase-repo"
         gh_pr.head.ref = rebase.branch
         gh_pr.state = "open"
-        dest_repo.pull_requests.return_value = [gh_pr]
+        dest_repo.get_pulls.return_value = [gh_pr]
 
         pr, pr_available = _is_pr_available(dest_repo, dest, rebase)
-        dest_repo.pull_requests.assert_called_once_with(
+        dest_repo.get_pulls.assert_called_once_with(
             base="dest-branch", state="open")
         assert pr == gh_pr
         assert pr_available is True
 
     def test_is_pr_available_not_found(self, dest_repo, dest, rebase):
         # Test when pull request doesn't exist
-        dest_repo.pull_requests.return_value = []
+        dest_repo.get_pulls.return_value = []
         pr, pr_available = _is_pr_available(dest_repo, dest, rebase)
-        dest_repo.pull_requests.assert_called_with(
+        dest_repo.get_pulls.assert_called_with(
             base="dest-branch", state="open")
         assert pr is None
         assert pr_available is False
 
     def test_is_pr_available_closed(self, dest_repo, dest, rebase):
         gh_pr = MagicMock()
-        gh_pr.as_dict.return_value = {
-            "head": {
-                "repo": {
-                    "full_name": "test-namespace/rebase-repo"
-                }
-            }
-        }
+        gh_pr.head.repo.full_name = "test-namespace/rebase-repo"
         gh_pr.head.ref = rebase.branch
         gh_pr.state = "closed"
 
-        # Mock pull_requests to return only PRs that match the requested state
-        def mock_pull_requests(*, base, state):
+        # Mock get_pulls to return only PRs that match the requested state
+        def mock_get_pulls(*, base, state):
             all_prs = [gh_pr]
             return [pr for pr in all_prs if pr.state == state]
 
-        dest_repo.pull_requests.side_effect = mock_pull_requests
+        dest_repo.get_pulls.side_effect = mock_get_pulls
 
         pr, pr_available = _is_pr_available(dest_repo, dest, rebase)
-        dest_repo.pull_requests.assert_called_once_with(
+        dest_repo.get_pulls.assert_called_once_with(
             base="dest-branch", state="open")
         assert pr is None
         assert pr_available is False
@@ -311,7 +299,6 @@ class TestUpdatePrTitle:
         gitwd.git.rev_parse.return_value = "abcdefg"
         pull_req = MagicMock()
         pull_req.title = "Merge https://github.com/kubernetes/cloud-provider-aws:master (b80e8ef) into master"
-        pull_req.update.return_value = True
         source = MagicMock(branch="my-feature",
                            url="https://github.com/my/repo")
         dest = MagicMock(branch="main")
@@ -321,7 +308,7 @@ class TestUpdatePrTitle:
         except Exception as ex:
             assert False, f"Unexpected exception: {ex}"
 
-        pull_req.update.assert_called_once_with(
+        pull_req.edit.assert_called_once_with(
             title=f"Merge {source.url}:{source.branch} (abcdefg) into {dest.branch}"
         )
 
@@ -331,7 +318,6 @@ class TestUpdatePrTitle:
         pull_req = MagicMock()
         pull_req.title = "OCPCLOUD-2051: Merge "
         "https://github.com/kubernetes/cloud-provider-aws:master (b80e8ef) into master"
-        pull_req.update.return_value = True
         source = MagicMock(branch="my-feature",
                            url="https://github.com/my/repo")
         dest = MagicMock(branch="main")
@@ -341,7 +327,7 @@ class TestUpdatePrTitle:
         except Exception as ex:
             assert False, f"Unexpected exception: {ex}"
 
-        pull_req.update.assert_called_once_with(
+        pull_req.edit.assert_called_once_with(
             title=f"OCPCLOUD-2051: Merge {source.url}:{source.branch} (abcdefg) into {dest.branch}"
         )
 
@@ -350,7 +336,6 @@ class TestUpdatePrTitle:
         gitwd.git.rev_parse.return_value = "abcdefg"
         pull_req = MagicMock()
         pull_req.title = "OCPCLOUD-2051: Manual rebase to lastest upstream version"
-        pull_req.update.return_value = True
         source = MagicMock(branch="my-feature",
                            url="https://github.com/my/repo")
         dest = MagicMock(branch="main")
@@ -360,14 +345,14 @@ class TestUpdatePrTitle:
         except Exception as ex:
             assert False, f"Unexpected exception: {ex}"
 
-        pull_req.update.assert_not_called()
+        pull_req.edit.assert_not_called()
 
     def test_failure(self):
         gitwd = MagicMock()
         gitwd.git.rev_parse.return_value = "abcdefg"
         pull_req = MagicMock()
         pull_req.title = "Merge https://github.com/kubernetes/cloud-provider-aws:master (b80e8ef) into master"
-        pull_req.update.return_value = False
+        pull_req.edit.side_effect = Exception("API error")
         source = MagicMock(branch="my-feature",
                            url="https://github.com/my/repo")
         dest = MagicMock(branch="main")
@@ -375,6 +360,6 @@ class TestUpdatePrTitle:
         pytest.raises(Exception, _update_pr_title,
                       gitwd, pull_req, source, dest)
 
-        pull_req.update.assert_called_once_with(
+        pull_req.edit.assert_called_once_with(
             title=f"Merge {source.url}:{source.branch} (abcdefg) into {dest.branch}"
         )

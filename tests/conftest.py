@@ -60,6 +60,7 @@ def tmp_go_app_repo() -> YieldFixture[Tuple[str, Repo]]:
         with repo.config_writer() as config:
             config.set_value("user", "email", "test@example.com")
             config.set_value("user", "name", "test")
+            config.set_value("commit", "gpgsign", "false")
         repo.git.add(all=True)
         repo.git.commit("-m", "Initial commit")
         yield tmpdir, repo
@@ -166,6 +167,7 @@ class CommitBuilder:
                 config.set_value(
                     "user", "email", f"{self.branch.name}_author@{self.branch.ns}.org")
                 config.set_value("user", "name", f"{self.branch.name}_author")
+            config.set_value("commit", "gpgsign", "false")
         self.commited = True
         self.repo.git.commit("--allow-empty", "-m", commit_msg)
         return self.repo.head.commit

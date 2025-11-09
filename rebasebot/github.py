@@ -22,7 +22,7 @@ import re
 from urllib.parse import urlparse
 from typing import Optional
 
-import github3
+from github import Auth, Github, GithubIntegration, GithubException, UnknownObjectException
 
 logger = logging.getLogger()
 
@@ -102,6 +102,8 @@ class GithubAppProvider:
 
     user_auth: bool
     user_token: Optional[str]
+    _app_token: Optional[str]
+    _cloner_token: Optional[str]
 
     def __init__(
             self,
@@ -121,6 +123,8 @@ class GithubAppProvider:
         self.user_token = user_token
         self._app_credentials = None
         self._cloner_app_credentials = None
+        self._app_token = None
+        self._cloner_token = None
 
         if not user_auth:
             if not all(
@@ -143,7 +147,9 @@ class GithubAppProvider:
 
         :return: str
         """
-        return self.github_app.session.auth.token
+        if self.user_auth:
+            return self.user_token
+        return self._app_token
 
     def get_cloner_token(self) -> str:
         """
@@ -151,53 +157,64 @@ class GithubAppProvider:
 
         :return: str
         """
-        return self.github_cloner_app.session.auth.token
+        if self.user_auth:
+            return self.user_token
+        return self._cloner_token
 
     @cached_property
-    def github_app(self) -> github3.GitHub:
+    def github_app(self) -> Github:
         """
         Authenticated GitHub app.
 
         In case `user_auth` = True, returns app authenticated with user token.
         In app mode `app_id`, `app_key` and `dest_branch` will be used for app authentication.
 
-        :return: github3.GitHub
+        :return: Github
         """
         if self.user_auth:
             return self._get_github_user_logged_in_app()
 
-        return self._github_login_app(self._app_credentials)
+        gh_app, token = self._github_login_app(self._app_credentials)
+        self._app_token = token
+        return gh_app
 
     @cached_property
-    def github_cloner_app(self) -> github3.GitHub:
+    def github_cloner_app(self) -> Github:
         """
         Authenticated GitHub app.
 
         In case `user_auth` = True, returns app authenticated with user token.
         In app mode `cloner_id`, `cloner_key` and `rebase_branch`will be used for app authentication.
 
-        :return: github3.GitHub
+        :return: Github
         """
         if self.user_auth:
             return self._get_github_user_logged_in_app()
 
-        return self._github_login_app(self._cloner_app_credentials)
+        gh_app, token = self._github_login_app(self._cloner_app_credentials)
+        self._cloner_token = token
+        return gh_app
 
     @staticmethod
-    def _github_login_app(credentials: GitHubAppCredentials) -> github3.GitHub:
+    def _github_login_app(credentials: GitHubAppCredentials) -> tuple[Github, str]:
+        """
+        Authenticate as a GitHub App and return both the Github instance and access token.
+
+        :return: tuple of (Github instance, access_token)
+        """
         logging.info(
             "Logging to GitHub as an Application for repository %s", credentials.github_branch.url
         )
-        gh_app = github3.GitHub()
-        gh_app.login_as_app(credentials.app_key,
-                            credentials.app_id, expire_in=300)
         gh_branch = credentials.github_branch
 
+        # Create app authentication
+        auth = Auth.AppAuth(credentials.app_id, credentials.app_key)
+        gi = GithubIntegration(auth=auth)
+
         try:
-            install = gh_app.app_installation_for_repository(
-                owner=gh_branch.ns, repository=gh_branch.name
-            )
-        except github3.exceptions.NotFoundError as err:
+            # Get installation for the repository
+            installation = gi.get_repo_installation(gh_branch.ns, gh_branch.name)
+        except UnknownObjectException as err:
             msg = (
                 f"App has not been authorized by {gh_branch.ns}, or repo "
                 f"{gh_branch.ns}/{gh_branch.name} does not exist"
@@ -205,12 +222,17 @@ class GithubAppProvider:
             logging.error(msg)
             raise builtins.Exception(msg) from err
 
-        gh_app.login_as_app_installation(
-            credentials.app_key, credentials.app_id, install.id)
-        return gh_app
+        # Get installation access token
+        access_token = gi.get_access_token(installation.id)
 
-    def _get_github_user_logged_in_app(self) -> github3.GitHub:
+        # Create authenticated Github instance
+        auth = Auth.Token(access_token.token)
+        gh_app = Github(auth=auth)
+
+        return gh_app, access_token.token
+
+    def _get_github_user_logged_in_app(self) -> Github:
         logging.info("Logging to GitHub as a User")
-        gh_app = github3.GitHub()
-        gh_app.login(token=self.user_token)
+        auth = Auth.Token(self.user_token)
+        gh_app = Github(auth=auth)
         return gh_app

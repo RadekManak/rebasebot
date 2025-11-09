@@ -395,12 +395,12 @@ class TestRebases:
         mocked_manual_rebase_pr_in_repo.return_value = pr
 
         # Mock GitHub repository lookup function
-        def fake_repository_func(namespace, name):
+        def fake_get_repo_func(full_name):
             repository = MagicMock()
-            repository.clone_url = f"https://github.com/{namespace}/{name}"
+            repository.clone_url = f"https://github.com/{full_name}"
             return repository
 
-        fake_github_provider.github_app.repository = fake_repository_func
+        fake_github_provider.github_app.get_repo = fake_get_repo_func
 
         args = MagicMock()
         args.source = source
@@ -481,7 +481,7 @@ class TestRebases:
                                    fake_github_provider, tmpdir, caplog):
         source, rebase, dest = init_test_repositories
 
-        mock_fetch_file_from_github.return_value.decoded = rb"""#!/bin/bash
+        mock_fetch_file_from_github.return_value.decoded_content = rb"""#!/bin/bash
 touch test-hook-script.success
 git add test-hook-script.success
 git commit -m 'UPSTREAM: <drop>: test-hook-script generated files'
@@ -644,7 +644,7 @@ exit 5""")
             cb.add_file("carry-file1", "content")
             cb.commit("UPSTREAM: <carry>: carry commit #1")
 
-            mock_fetch_file_from_github.return_value.decoded = rb"""#!/bin/sh
+            mock_fetch_file_from_github.return_value.decoded_content = rb"""#!/bin/sh
 echo main
 """
 

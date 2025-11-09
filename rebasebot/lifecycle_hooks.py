@@ -24,7 +24,7 @@ from enum import Enum
 
 from dataclasses import dataclass
 from typing import List
-from github3.repos.contents import Contents
+from github.ContentFile import ContentFile
 import git
 import git.repo
 
@@ -127,10 +127,10 @@ class LifecycleHookScript:
                                git_repo_path_to_script: str, branch: str, script_file_path: str):
         """Fetches script from GitHub API."""
         try:
-            script: Contents = _fetch_file_from_github(
+            script: ContentFile = _fetch_file_from_github(
                 github, organization, name, branch, git_repo_path_to_script)
             with open(script_file_path, "wb",) as f:
-                f.write(script.decoded)
+                f.write(script.decoded_content)
             os.chmod(script_file_path, 0o755)  # Make it executable
         except Exception as e:
             raise ValueError(
@@ -227,9 +227,9 @@ class LifecycleHookScript:
 
 
 def _fetch_file_from_github(
-        github, organization, name, branch, git_repo_path_to_script) -> Contents:
-    return github.github_cloner_app.repository(
-        owner=organization, repository=name).file_contents(git_repo_path_to_script, ref=branch)
+        github, organization, name, branch, git_repo_path_to_script) -> ContentFile:
+    repo = github.github_cloner_app.get_repo(f"{organization}/{name}")
+    return repo.get_contents(git_repo_path_to_script, ref=branch)
 
 
 def _fetch_branch(gitwd: git.Repo, remote: str,
