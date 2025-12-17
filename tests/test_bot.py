@@ -265,10 +265,13 @@ class TestReportResult:
         "needs_rebase, pr_required, pr_available, pr_url, slack_message",
         [
             # Cases when needs_rebase is True
-            (True, False, False, "https://github.com/user/repo/pull/123",
+            (True, True, False, "https://github.com/user/repo/pull/123",
              "I created a new rebase PR: https://github.com/user/repo/pull/123"),
             (True, False, True, "https://github.com/user/repo/pull/456",
              "I updated existing rebase PR: https://github.com/user/repo/pull/456"),
+            # Rebase performed but no changes between rebase and dest (no PR needed)
+            (True, False, False, None,
+             f"Destination repo {dest_url} already contains the latest changes"),
 
             # Cases when needs_rebase is False
             (False, False, True, "https://github.com/user/repo/pull/100",
