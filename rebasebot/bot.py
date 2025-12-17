@@ -650,9 +650,14 @@ def _report_result(  # pylint: disable=R0917
     message = None
     if needs_rebase:
         if not pr_available:
-            # Case 1: either source or dest repos were updated and there is no PR yet.
-            # We create a new PR then.
-            message = f"I created a new rebase PR: {pr_url}"
+            if pr_required:
+                # Case 1: either source or dest repos were updated and there is no PR yet.
+                # We create a new PR then.
+                message = f"I created a new rebase PR: {pr_url}"
+            else:
+                # Rebase was performed but rebase branch has same content as dest.
+                # No PR is required.
+                message = f"Destination repo {dest_url} already contains the latest changes"
         else:
             # Case 2: repos were updated recently, but we already have an open PR.
             # We updated the exiting PR.
