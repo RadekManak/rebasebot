@@ -568,6 +568,16 @@ def _init_working_dir(
     # For a cherry-pick, we must start with the source branch and pick
     # the carry commits on top.
     source_ref = f"source/{source.branch}"
+
+    # Check if source_ref exists; if not, create it.
+    # This handles the case where source.branch is a commit SHA rather than a branch name.
+    try:
+        gitwd.git.rev_parse(source_ref)
+    except git.GitCommandError:
+        logging.info(f"{source_ref} does not exist, creating branch from {source.branch}")
+        gitwd.git.branch("-f", source_ref, source.branch)
+        logging.info(f"{source_ref} branch created")
+
     logging.info("Checking out %s", source_ref)
 
     logging.info(
