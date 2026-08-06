@@ -238,17 +238,10 @@ Some scripts are included in the bot repository itself. They are stored in the `
 
 Builtin scripts are available via the `_BUILTIN_/` path prefix.
 
-| Script | Purpose |
-|--------|---------|
-| `_BUILTIN_/example.sh` | Minimal example hook |
-| `_BUILTIN_/update_go_modules.sh` | Reset/tidy Go modules and vendor (`--update-go-modules`) |
-| `_BUILTIN_/update_go_modules_no_vendor.sh` | Reset/tidy Go modules without vendoring |
-
 ##### Example
 
 ```sh
 rebasebot --pre-create-pr-hook _BUILTIN_/example.sh
-rebasebot --post-rebase-hook _BUILTIN_/update_go_modules_no_vendor.sh
 ```
 
 ### Environment variables in Hooks
