@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from unittest.mock import MagicMock, patch
 
 from rebasebot import cli
@@ -523,6 +524,35 @@ class TestFalseRenameDeleteResolution:
 
         assert result.created_commit is True
         assert "test.go" not in gitwd.git.ls_files().splitlines()
+
+    def test_legitimate_delete_removes_non_ascii_path(self, init_test_repositories, fake_github_provider, tmpdir):
+        """Quoted non-ASCII paths in the picked commit still delete (path unescape must match)."""
+        source, rebase, dest = init_test_repositories
+        non_ascii_name = "café.txt"
+
+        CommitBuilder(source).add_file(non_ascii_name, "upstream café\n").commit("add non-ascii file")
+        CommitBuilder(dest).add_file(non_ascii_name, "downstream café\n").commit(
+            "UPSTREAM: <carry>: add non-ascii file"
+        )
+        CommitBuilder(source).update_file(non_ascii_name, "upstream modified café\n").commit(
+            "modify non-ascii file upstream"
+        )
+        carry = CommitBuilder(dest).remove_file(non_ascii_name).commit("UPSTREAM: <carry>: remove non-ascii file")
+
+        gitwd = _prepare_working_repo(source, rebase, dest, fake_github_provider, tmpdir)
+        non_ascii_path = os.path.join(gitwd.working_dir, non_ascii_name)
+        assert os.path.exists(non_ascii_path)
+
+        result = _safe_cherry_pick(
+            gitwd=gitwd,
+            sha=carry.hexsha,
+            source_branch=source.branch,
+            conflict_policy="auto",
+            commit_description=f"{carry.hexsha} - UPSTREAM: <carry>: remove non-ascii file",
+        )
+
+        assert result.created_commit is True
+        assert not os.path.exists(non_ascii_path)
 
     def test_empty_after_resolution_skips_pick(self, init_test_repositories, fake_github_provider, tmpdir):
         """Keeping false renames with no remaining changes skips instead of failing or empty-committing."""

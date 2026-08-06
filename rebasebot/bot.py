@@ -401,10 +401,18 @@ def _detect_conflicting_files(gitwd: git.Repo, sha: str) -> set:
     return conflicted
 
 
+def _unescape_git_path(path: str) -> str:
+    """Decode a git C-quoted path from --name-only / status --porcelain output."""
+    if path.startswith('"') and path.endswith('"'):
+        path = path[1:-1]
+        path = path.encode("ascii").decode("unicode_escape").encode("latin1").decode(git.compat.defenc)
+    return path
+
+
 def _picked_commit_paths(gitwd: git.Repo, sha: str) -> set[str]:
     """Return paths touched by sha with rename detection disabled."""
     output = gitwd.git.diff_tree("--no-renames", "--no-commit-id", "--name-only", "-r", sha)
-    return {line for line in output.splitlines() if line}
+    return {_unescape_git_path(line) for line in output.splitlines() if line}
 
 
 def _check_upstream_content_loss(gitwd: git.Repo, source_branch: str, only_files: set | None = None) -> list:
@@ -701,11 +709,7 @@ def _resolve_conflict(gitwd: git.Repo, sha: str) -> bool:
             logging.info("Unresolvable conflict: %s", line)
             unresolvable = True
             continue
-        filename = line[3:].rstrip("\n")
-        # Special characters are escaped
-        if filename[0] == filename[-1] == '"':
-            filename = filename[1:-1]
-            filename = filename.encode("ascii").decode("unicode_escape").encode("latin1").decode(git.compat.defenc)
+        filename = _unescape_git_path(line[3:].rstrip("\n"))
         if filename in picked_paths:
             files_to_delete.append(filename)
         else:
