@@ -98,6 +98,8 @@ It's useful only with Golang repositories, which require a `vendor` folder with 
 
 *Note: Internally this is implemented using lifecycle hook script and is equivalent to passing `--post-rebase-hook _BUILTIN_/update_go_modules.sh` parameter.*
 
+For repositories without a `vendor/` tree, use `--post-rebase-hook _BUILTIN_/update_go_modules_no_vendor.sh` instead (tidy/sync only, no vendoring).
+
 ### Slack Webhook
 
 If you want to be notified in Slack about the status of recent rebases, you can set ``--slack-webhook` option. The value here is the path to a local file with the webhook url.
@@ -236,10 +238,17 @@ Some scripts are included in the bot repository itself. They are stored in the `
 
 Builtin scripts are available via the `_BUILTIN_/` path prefix.
 
+| Script | Purpose |
+|--------|---------|
+| `_BUILTIN_/example.sh` | Minimal example hook |
+| `_BUILTIN_/update_go_modules.sh` | Reset/tidy Go modules and vendor (`--update-go-modules`) |
+| `_BUILTIN_/update_go_modules_no_vendor.sh` | Reset/tidy Go modules without vendoring |
+
 ##### Example
 
 ```sh
 rebasebot --pre-create-pr-hook _BUILTIN_/example.sh
+rebasebot --post-rebase-hook _BUILTIN_/update_go_modules_no_vendor.sh
 ```
 
 ### Environment variables in Hooks
